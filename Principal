@@ -1,0 +1,39 @@
+library(shiny)
+library(ggplot2)
+
+# Charger les données
+data <- read.csv("TEMPORAIRE")
+
+ui <- navbarPage("Consommation énergétique et DPE",
+                 
+  tabPanel("Accueil",
+    fluidPage(
+      plotOutput("TEMPORAIRE"),
+      tableOutput("TEMPORAIRE")
+    )
+  ),
+  
+  tabPanel("Analyse par classe DPE",
+    sidebarLayout(
+      sidebarPanel(
+        selectInput("classe", "Choisir une classe DPE :", choices = unique(TEMPORAIRE))
+      ),
+      mainPanel(
+        plotOutput("TEMPORAIRE"),
+        tableOutput("TEMPORAIRE")
+      )
+    )
+  ),
+  
+  tabPanel("TEMPORAIRE",
+    sidebarLayout(
+      sidebarPanel(
+        
+      ),
+      mainPanel(
+        plotOutput("TEMPORAIRE"),
+        tableOutput("TEMPORAIRE")
+      )
+    )
+  )
+)
