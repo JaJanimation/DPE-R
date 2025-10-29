@@ -6,12 +6,20 @@ data <- read.csv("TEMPORAIRE")
 
 ui <- navbarPage("Consommation énergétique et DPE",
                  
-  tabPanel("Accueil",
-    fluidPage(
-      plotOutput("TEMPORAIRE"),
-      tableOutput("TEMPORAIRE")
-    )
-  ),
+  tabPanel("Contexte",
+  fluidPage(
+    h2("Contexte du projet"),
+    p("Avec l'accélération du changement climatique et la hausse des prix de l'énergie, la sobriété énergétique est au cœur des préoccupations des Français. Enedis souhaite évaluer l'impact de la classe de Diagnostic de Performance Énergétique (DPE) sur la consommation des logements."),
+    
+    h3("Données disponibles"),
+    
+    h3("Statistiques"),
+    
+    
+    h3("Répartition des classes DPE"),
+    
+  )
+),
   
   tabPanel("Analyse par classe DPE",
     sidebarLayout(
@@ -37,3 +45,4 @@ ui <- navbarPage("Consommation énergétique et DPE",
     )
   )
 )
+
