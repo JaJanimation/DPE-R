@@ -1,8 +1,15 @@
+install.packages("DT")
+install.packages("shiny")
+install.packages("ggplot2")
+install.packages("leaflet")
+
+library(DT)
 library(shiny)
 library(ggplot2)
+library(leaflet)
 
-# Charge les données
-data <- read.csv("dpe_rhone.csv")  ## Remplacer par le vrai nom de du fichier quand accès
+# Charger les données
+data <- read.csv("dpe_rhone.csv")  # Remplace par le vrai nom de ton fichier
 
 ui <- navbarPage("Consommation énergétique et DPE",
                  
@@ -12,7 +19,7 @@ ui <- navbarPage("Consommation énergétique et DPE",
       p("Avec l'accélération du changement climatique et la hausse des prix de l'énergie, la sobriété énergétique est au cœur des préoccupations des Français. Enedis souhaite évaluer l'impact de la classe de Diagnostic de Performance Énergétique (DPE) sur la consommation des logements."),
       
       h3("Données disponibles"),
-      tableOutput("table_apercu"),
+      DT::dataTableOutput("table_apercu"),
       
       h3("Statistiques"),
       verbatimTextOutput("stats_resume"),
@@ -35,23 +42,48 @@ ui <- navbarPage("Consommation énergétique et DPE",
   ),
   
   tabPanel("À compléter",
-    sidebarLayout(
-      sidebarPanel(
-        ## Ajouter des filtres éventuellement
-      ),
-      mainPanel(
-        plotOutput("plot_autre"),
-        tableOutput("table_autre")
-      )
+    fluidPage(
+      h3("KPI énergétiques par classe DPE"),
+      tableOutput("kpi_dpe"),
+      
+      h3("Consommation par m² selon le type de logement"),
+      plotOutput("plot_typologie"),
+      
+      h3("Répartition des types d'énergie"),
+      plotOutput("plot_energie"),
+      
+      h3("Corrélation entre surface et consommation"),
+      plotOutput("plot_correlation")
     )
   )
 )
 
+  tabPanel("Carte interactive",
+    fluidPage(
+      h3("Localisation des logements avec DPE"),
+      leafletOutput("map_dpe", height = "600px")
+    )
+  )
+
 server <- function(input, output) {
+
+  # Carte interactive
+  output$map_dpe <- renderLeaflet({
+    leaflet(data) %>%
+      addTiles() %>%
+      addCircleMarkers(
+        lng = data$coordonnee_cartographique_x_ban,
+        lat = data$coordonnee_cartographique_y_ban,
+        radius = 4,
+        color = "blue",
+        popup = paste("Classe DPE :", data$etiquette_dpe)
+      )
+  })
+
   
   # Aperçu des données
-  output$table_apercu <- renderTable({
-    head(data, 10)
+  output$table_apercu <- DT::renderDataTable({
+  data
   })
   
   # Statistiques descriptives
@@ -81,13 +113,31 @@ server <- function(input, output) {
     head(data_classe())
   })
   
-  # Onglet à compléter
-  output$plot_autre <- renderPlot({
-    plot(1, 1, main = "À compléter")
+  # KPI par classe DPE
+  output$kpi_dpe <- renderTable({
+    aggregate(cbind(conso_5_usages_ef, cout_total_5_usages, emission_ges_5_usages) ~ etiquette_dpe, data, mean, na.rm = TRUE)
   })
   
-  output$table_autre <- renderTable({
-    data.frame(Message = "À compléter")
+  # Consommation par m² selon le type de logement
+  output$plot_typologie <- renderPlot({
+    ggplot(data, aes(x = typologie_logement, y = conso_5.usages_par_m2_ef)) +
+      geom_boxplot(fill = "lightgreen") +
+      labs(x = "Type de logement", y = "Consommation par m² (kWh/m²)")
+  })
+  
+  # Répartition des types d'énergie
+  output$plot_energie <- renderPlot({
+    ggplot(data, aes(x = type_energie_n1)) +
+      geom_bar(fill = "purple") +
+      labs(x = "Type d'énergie principale", y = "Nombre de logements")
+  })
+  
+  # Corrélation surface vs consommation
+  output$plot_correlation <- renderPlot({
+    ggplot(data, aes(x = surface_habitable_logement, y = conso_5_usages_ef)) +
+      geom_point(alpha = 0.5, color = "darkblue") +
+      geom_smooth(method = "lm", se = FALSE, color = "red") +
+      labs(x = "Surface habitable (m²)", y = "Consommation (kWh)")
   })
 }
 
