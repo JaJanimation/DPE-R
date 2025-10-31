@@ -1,48 +1,94 @@
 library(shiny)
 library(ggplot2)
 
-# Charger les données
-data <- read.csv("TEMPORAIRE")
+# Charge les données
+data <- read.csv("dpe_rhone.csv")  ## Remplacer par le vrai nom de du fichier quand accès
 
 ui <- navbarPage("Consommation énergétique et DPE",
                  
   tabPanel("Contexte",
-  fluidPage(
-    h2("Contexte du projet"),
-    p("Avec l'accélération du changement climatique et la hausse des prix de l'énergie, la sobriété énergétique est au cœur des préoccupations des Français. Enedis souhaite évaluer l'impact de la classe de Diagnostic de Performance Énergétique (DPE) sur la consommation des logements."),
-    
-    h3("Données disponibles"),
-    
-    h3("Statistiques"),
-    
-    
-    h3("Répartition des classes DPE"),
-    
-  )
-),
+    fluidPage(
+      h2("Contexte de l'application"),
+      p("Avec l'accélération du changement climatique et la hausse des prix de l'énergie, la sobriété énergétique est au cœur des préoccupations des Français. Enedis souhaite évaluer l'impact de la classe de Diagnostic de Performance Énergétique (DPE) sur la consommation des logements."),
+      
+      h3("Données disponibles"),
+      tableOutput("table_apercu"),
+      
+      h3("Statistiques"),
+      verbatimTextOutput("stats_resume"),
+      
+      h3("Répartition des classes DPE"),
+      plotOutput("hist_dpe")
+    )
+  ),
   
   tabPanel("Analyse par classe DPE",
     sidebarLayout(
       sidebarPanel(
-        selectInput("classe", "Choisir une classe DPE :", choices = unique(TEMPORAIRE))
+        selectInput("classe", "Choisir une classe DPE :", choices = unique(data$etiquette_dpe))
       ),
       mainPanel(
-        plotOutput("TEMPORAIRE"),
-        tableOutput("TEMPORAIRE")
+        plotOutput("plot_classe"),
+        tableOutput("table_classe")
       )
     )
   ),
   
-  tabPanel("TEMPORAIRE",
+  tabPanel("À compléter",
     sidebarLayout(
       sidebarPanel(
-        
+        ## Ajouter des filtres éventuellement
       ),
       mainPanel(
-        plotOutput("TEMPORAIRE"),
-        tableOutput("TEMPORAIRE")
+        plotOutput("plot_autre"),
+        tableOutput("table_autre")
       )
     )
   )
 )
 
+server <- function(input, output) {
+  
+  # Aperçu des données
+  output$table_apercu <- renderTable({
+    head(data, 10)
+  })
+  
+  # Statistiques descriptives
+  output$stats_resume <- renderPrint({
+    summary(data)
+  })
+  
+  # Histogramme des classes DPE
+  output$hist_dpe <- renderPlot({
+    ggplot(data, aes(x = etiquette_dpe)) +
+      geom_bar(fill = "steelblue") +
+      labs(x = "Classe DPE", y = "Nombre de logements")
+  })
+  
+  # Analyse par classe
+  data_classe <- reactive({
+    subset(data, etiquette_dpe == input$classe)
+  })
+  
+  output$plot_classe <- renderPlot({
+    ggplot(data_classe(), aes(x = conso_5_usages_ef)) +
+      geom_histogram(binwidth = 200, fill = "darkorange", color = "white") +
+      labs(x = "Consommation (kWh)", y = "Nombre de logements")
+  })
+  
+  output$table_classe <- renderTable({
+    head(data_classe())
+  })
+  
+  # Onglet à compléter
+  output$plot_autre <- renderPlot({
+    plot(1, 1, main = "À compléter")
+  })
+  
+  output$table_autre <- renderTable({
+    data.frame(Message = "À compléter")
+  })
+}
+
+shinyApp(ui = ui, server = server)
