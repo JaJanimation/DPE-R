@@ -11,10 +11,17 @@ library(leaflet)
 # Charger les données
 data <- read.csv("dpe_rhone.csv")  # Remplace par le vrai nom de ton fichier
 
+# Logo Enedis affiché en haut à gauche
+logo_ui <- tags$div(
+  style = "position: absolute; top: 10px; left: 10px; z-index: 1000;",
+  tags$img(src = "enedis_logo.png", height = "50px")
+)
+
 ui <- navbarPage("Consommation énergétique et DPE",
                  
-  tabPanel("Contexte",
+  tabPanel(tagList(icon("info-circle"), "Contexte"),
     fluidPage(
+      logo_ui,
       h2("Contexte de l'application"),
       p("Avec l'accélération du changement climatique et la hausse des prix de l'énergie, la sobriété énergétique est au cœur des préoccupations des Français. Enedis souhaite évaluer l'impact de la classe de Diagnostic de Performance Énergétique (DPE) sur la consommation des logements."),
       
@@ -29,20 +36,22 @@ ui <- navbarPage("Consommation énergétique et DPE",
     )
   ),
   
-  tabPanel("Analyse par classe DPE",
+  tabPanel(tagList(icon("chart-bar"), "Analyse par classe DPE"),
     sidebarLayout(
       sidebarPanel(
         selectInput("classe", "Choisir une classe DPE :", choices = unique(data$etiquette_dpe))
       ),
       mainPanel(
+        logo_ui,
         plotOutput("plot_classe"),
         tableOutput("table_classe")
       )
     )
   ),
   
-  tabPanel("À compléter",
+  tabPanel(tagList(icon("tachometer-alt"), "KPI & Comparaisons"),
     fluidPage(
+      logo_ui,
       h3("KPI énergétiques par classe DPE"),
       tableOutput("kpi_dpe"),
       
@@ -55,15 +64,16 @@ ui <- navbarPage("Consommation énergétique et DPE",
       h3("Corrélation entre surface et consommation"),
       plotOutput("plot_correlation")
     )
-  )
-)
-
-  tabPanel("Carte interactive",
+  ),
+  
+  tabPanel(tagList(icon("map-marked-alt"), "Carte interactive"),
     fluidPage(
+      logo_ui,
       h3("Localisation des logements avec DPE"),
       leafletOutput("map_dpe", height = "600px")
     )
   )
+)
 
 server <- function(input, output) {
 
@@ -80,10 +90,9 @@ server <- function(input, output) {
       )
   })
 
-  
   # Aperçu des données
   output$table_apercu <- DT::renderDataTable({
-  data
+    data
   })
   
   # Statistiques descriptives
