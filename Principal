@@ -1,11 +1,29 @@
+install.packages("shiny")
+install.packages("DT")
+install.packages("ggplot2")
+install.packages("leaflet")
+install.packages("bslib")
+install.packages("thematic")
+install.packages("shinymanager")
+
+
 library(shiny)
 library(DT)
 library(ggplot2)
 library(leaflet)
 library(bslib)
 library(thematic)
+library(shinymanager)
 
 thematic::thematic_shiny()
+
+library(shinymanager)
+
+credentials <- data.frame(
+  user = c("admin",),
+  password = c("admin"),
+  stringsAsFactors = FALSE
+)
 
 # Chargement des données
 data_neuf <- read.csv("dpe_neuf.csv")
@@ -21,7 +39,7 @@ logo_ui <- tags$div(
 )
 
 # Interface utilisateur
-ui <- fluidPage(
+ui <- secure_app(fluidPage(
   theme = bs_theme(version = 5, bootswatch = "darkly"),
 
   # Sélecteur de thème
@@ -90,6 +108,7 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+  res_auth <- secure_server(check_credentials = check_credentials(credentials))
 
   observe({
     theme_choice <- if (input$theme_slider == 0) "darkly" else "flatly"
