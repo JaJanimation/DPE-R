@@ -1,11 +1,26 @@
-library(DT)
+# Packages nécessaires
+install.packages("shiny")
+install.packages("DT")
+install.packages("ggplot2")
+install.packages("leaflet")
+install.packages("bslib")
+install.packages("thematic")
+
 library(shiny)
+library(DT)
 library(ggplot2)
 library(leaflet)
+library(bslib)
+library(thematic)
 
-# Charger les deux jeux de données
-data_neuf <- read.csv("dpe_neuf.csv")        # DPE logements neufs
-data_existant <- read.csv("dpe_existant.csv") # DPE logements existants
+thematic::thematic_shiny()
+
+# Chargement des données
+data_neuf <- read.csv("dpe_neuf.csv")
+data_existant <- read.csv("dpe_existant.csv")
+data_neuf$source <- "Neuf"
+data_existant$source <- "Existant"
+data_all <- rbind(data_neuf, data_existant)
 
 # Logo Enedis
 logo_ui <- tags$div(
@@ -13,54 +28,76 @@ logo_ui <- tags$div(
   tags$img(src = "enedis_logo.png", height = "50px")
 )
 
-ui <- navbarPage("Consommation énergétique et DPE",
-                 
-  tabPanel(tagList(icon("info-circle"), "Contexte"),
-    fluidPage(
-      logo_ui,
-      h2("Contexte de l'application"),
-      p("Enedis souhaite évaluer l'impact de la classe DPE sur la consommation des logements."),
-      h3("Données disponibles"),
-      DT::dataTableOutput("table_apercu"),
-      h3("Statistiques"),
-      verbatimTextOutput("stats_resume"),
-      h3("Répartition des classes DPE"),
-      plotOutput("hist_dpe")
-    )
+# Interface utilisateur
+ui <- fluidPage(
+  theme = bs_theme(version = 5, bootswatch = "darkly"),
+
+  # Sélecteur de thème avec icônes Font Awesome
+  fluidRow(
+    column(1, tags$i(class = "fas fa-moon fa-lg", style = "color: #ccc;")),
+    column(10, sliderInput("theme_slider", label = NULL, min = 0, max = 1, value = 0, step = 1)),
+    column(1, tags$i(class = "fas fa-sun fa-lg", style = "color: #f5c518;"))
   ),
-  
-  tabPanel(tagList(icon("chart-bar"), "Analyse & Visualisation"),
-    sidebarLayout(
-      sidebarPanel(
+
+  navbarPage("Consommation énergétique et DPE",
+
+    tabPanel(tagList(icon("info-circle"), "Contexte"),
+      fluidPage(
         logo_ui,
-        checkboxGroupInput("source_dpe", "Source DPE :", choices = c("Neuf", "Existant"), selected = c("Neuf", "Existant")),
-        checkboxGroupInput("energie", "Type d'énergie :", choices = NULL),
-        sliderInput("surface", "Surface habitable (m²) :", min = 0, max = 300, value = c(0, 300)),
-        radioButtons("typologie", "Type de logement :", choices = NULL),
-        actionButton("reset", "Réinitialiser les filtres")
-      ),
-      mainPanel(
-        h3("📊 Histogramme des classes DPE"),
-        plotOutput("plot_histogramme"),
-        h3("📦 Boîte à moustaches : consommation par m²"),
-        plotOutput("plot_boite"),
-        h3("📈 Diagramme des types d'énergie"),
-        plotOutput("plot_diagramme"),
-        h3("☁️ Nuage de points : surface vs consommation"),
-        plotOutput("plot_nuage")
+        h2("Contexte de l'application"),
+        p("Enedis souhaite évaluer l'impact de la classe DPE sur la consommation des logements."),
+        h3("Données disponibles"),
+        DT::dataTableOutput("table_apercu"),
+        h3("Statistiques"),
+        verbatimTextOutput("stats_resume"),
+        h3("Répartition des classes DPE"),
+        plotOutput("hist_dpe")
+      )
+    ),
+
+    tabPanel(tagList(icon("chart-bar"), "Analyse et Visualisation"),
+      sidebarLayout(
+        sidebarPanel(
+          logo_ui,
+          checkboxGroupInput("source_dpe", "Source DPE :", choices = c("Neuf", "Existant"), selected = c("Neuf", "Existant")),
+          checkboxGroupInput("energie", "Type d'énergie :", choices = NULL),
+          sliderInput("surface", "Surface habitable (m²) :", min = 0, max = 300, value = c(0, 300)),
+          radioButtons("typologie", "Type de logement :", choices = NULL),
+          actionButton("reset", "Réinitialiser les filtres")
+        ),
+        mainPanel(
+          h3("Histogramme des classes DPE"),
+          plotOutput("plot_histogramme"),
+          h3("Boîte à moustaches : consommation par m²"),
+          plotOutput("plot_boite"),
+          h3("Diagramme des types d'énergie"),
+          plotOutput("plot_diagramme"),
+          h3("Nuage de points : surface vs consommation"),
+          plotOutput("plot_nuage")
+        )
+      )
+    ),
+
+    tabPanel(tagList(icon("map-marked-alt"), "Carte interactive"),
+      fluidPage(
+        logo_ui,
+        h3("Localisation des logements avec DPE"),
+        leafletOutput("map_dpe", height = "600px")
       )
     )
   )
 )
 
+# Serveur
 server <- function(input, output, session) {
 
-  # Fusionner les deux jeux de données avec une colonne source
-  data_neuf$source <- "Neuf"
-  data_existant$source <- "Existant"
-  data_all <- rbind(data_neuf, data_existant)
+  # Changement de thème dynamique
+  observe({
+    theme_choice <- if (input$theme_slider == 0) "darkly" else "flatly"
+    session$setCurrentTheme(bs_theme(version = 5, bootswatch = theme_choice))
+  })
 
-  # Mettre à jour les filtres dynamiques
+  # Mise à jour des filtres
   observe({
     updateCheckboxGroupInput(session, "energie", choices = unique(data_all$type_energie_n1), selected = unique(data_all$type_energie_n1))
     updateRadioButtons(session, "typologie", choices = unique(data_all$typologie_logement), selected = unique(data_all$typologie_logement)[1])
@@ -85,14 +122,14 @@ server <- function(input, output, session) {
     )
   })
 
-  # Aperçu des données
+  # Tableau
   output$table_apercu <- DT::renderDataTable({ data_filtrée() })
 
   # Statistiques
   output$stats_resume <- renderPrint({ summary(data_filtrée()) })
 
-  # Histogramme des classes DPE
-  output$plot_histogramme <- renderPlot({
+  # Histogramme
+  output$hist_dpe <- renderPlot({
     ggplot(data_filtrée(), aes(x = etiquette_dpe)) +
       geom_bar(fill = "steelblue") +
       labs(x = "Classe DPE", y = "Nombre de logements")
@@ -105,7 +142,7 @@ server <- function(input, output, session) {
       labs(x = "Type de logement", y = "Consommation par m² (kWh/m²)")
   })
 
-  # Diagramme des types d'énergie
+  # Diagramme
   output$plot_diagramme <- renderPlot({
     ggplot(data_filtrée(), aes(x = type_energie_n1)) +
       geom_bar(fill = "purple") +
@@ -118,6 +155,19 @@ server <- function(input, output, session) {
       geom_point(alpha = 0.5, color = "darkblue") +
       geom_smooth(method = "lm", se = FALSE, color = "red") +
       labs(x = "Surface habitable (m²)", y = "Consommation (kWh)")
+  })
+
+  # Carte
+  output$map_dpe <- renderLeaflet({
+    leaflet(data_filtrée()) %>%
+      addTiles() %>%
+      addCircleMarkers(
+        lng = ~coordonnee_cartographique_x_ban,
+        lat = ~coordonnee_cartographique_y_ban,
+        radius = 4,
+        color = "blue",
+        popup = ~paste("Classe DPE :", etiquette_dpe)
+      )
   })
 }
 
