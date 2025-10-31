@@ -1,11 +1,3 @@
-# Packages nécessaires
-install.packages("shiny")
-install.packages("DT")
-install.packages("ggplot2")
-install.packages("leaflet")
-install.packages("bslib")
-install.packages("thematic")
-
 library(shiny)
 library(DT)
 library(ggplot2)
@@ -32,7 +24,7 @@ logo_ui <- tags$div(
 ui <- fluidPage(
   theme = bs_theme(version = 5, bootswatch = "darkly"),
 
-  # Sélecteur de thème avec icônes Font Awesome
+  # Sélecteur de thème
   fluidRow(
     column(1, tags$i(class = "fas fa-moon fa-lg", style = "color: #ccc;")),
     column(10, sliderInput("theme_slider", label = NULL, min = 0, max = 1, value = 0, step = 1)),
@@ -48,10 +40,12 @@ ui <- fluidPage(
         p("Enedis souhaite évaluer l'impact de la classe DPE sur la consommation des logements."),
         h3("Données disponibles"),
         DT::dataTableOutput("table_apercu"),
+        downloadButton("export_csv", "Télécharger les données filtrées"),
         h3("Statistiques"),
         verbatimTextOutput("stats_resume"),
         h3("Répartition des classes DPE"),
-        plotOutput("hist_dpe")
+        plotOutput("hist_dpe"),
+        downloadButton("export_hist", "Télécharger le graphique")
       )
     ),
 
@@ -68,12 +62,19 @@ ui <- fluidPage(
         mainPanel(
           h3("Histogramme des classes DPE"),
           plotOutput("plot_histogramme"),
+          downloadButton("export_hist", "Télécharger le graphique"),
+
           h3("Boîte à moustaches : consommation par m²"),
           plotOutput("plot_boite"),
+          downloadButton("export_boite", "Télécharger le graphique"),
+
           h3("Diagramme des types d'énergie"),
           plotOutput("plot_diagramme"),
+          downloadButton("export_diagramme", "Télécharger le graphique"),
+
           h3("Nuage de points : surface vs consommation"),
-          plotOutput("plot_nuage")
+          plotOutput("plot_nuage"),
+          downloadButton("export_nuage", "Télécharger le graphique")
         )
       )
     ),
@@ -88,22 +89,18 @@ ui <- fluidPage(
   )
 )
 
-# Serveur
 server <- function(input, output, session) {
 
-  # Changement de thème dynamique
   observe({
     theme_choice <- if (input$theme_slider == 0) "darkly" else "flatly"
     session$setCurrentTheme(bs_theme(version = 5, bootswatch = theme_choice))
   })
 
-  # Mise à jour des filtres
   observe({
     updateCheckboxGroupInput(session, "energie", choices = unique(data_all$type_energie_n1), selected = unique(data_all$type_energie_n1))
     updateRadioButtons(session, "typologie", choices = unique(data_all$typologie_logement), selected = unique(data_all$typologie_logement)[1])
   })
 
-  # Réinitialisation des filtres
   observeEvent(input$reset, {
     updateCheckboxGroupInput(session, "source_dpe", selected = c("Neuf", "Existant"))
     updateCheckboxGroupInput(session, "energie", selected = unique(data_all$type_energie_n1))
@@ -111,7 +108,6 @@ server <- function(input, output, session) {
     updateRadioButtons(session, "typologie", selected = unique(data_all$typologie_logement)[1])
   })
 
-  # Données filtrées
   data_filtrée <- reactive({
     subset(data_all,
       source %in% input$source_dpe &
@@ -122,34 +118,34 @@ server <- function(input, output, session) {
     )
   })
 
-  # Tableau
   output$table_apercu <- DT::renderDataTable({ data_filtrée() })
 
-  # Statistiques
   output$stats_resume <- renderPrint({ summary(data_filtrée()) })
 
-  # Histogramme
   output$hist_dpe <- renderPlot({
     ggplot(data_filtrée(), aes(x = etiquette_dpe)) +
       geom_bar(fill = "steelblue") +
       labs(x = "Classe DPE", y = "Nombre de logements")
   })
 
-  # Boîte à moustaches
+  output$plot_histogramme <- renderPlot({
+    ggplot(data_filtrée(), aes(x = etiquette_dpe)) +
+      geom_bar(fill = "steelblue") +
+      labs(x = "Classe DPE", y = "Nombre de logements")
+  })
+
   output$plot_boite <- renderPlot({
     ggplot(data_filtrée(), aes(x = typologie_logement, y = conso_5.usages_par_m2_ef)) +
       geom_boxplot(fill = "orange") +
       labs(x = "Type de logement", y = "Consommation par m² (kWh/m²)")
   })
 
-  # Diagramme
   output$plot_diagramme <- renderPlot({
     ggplot(data_filtrée(), aes(x = type_energie_n1)) +
       geom_bar(fill = "purple") +
       labs(x = "Type d'énergie", y = "Nombre de logements")
   })
 
-  # Nuage de points
   output$plot_nuage <- renderPlot({
     ggplot(data_filtrée(), aes(x = surface_habitable_logement, y = conso_5_usages_ef)) +
       geom_point(alpha = 0.5, color = "darkblue") +
@@ -157,7 +153,6 @@ server <- function(input, output, session) {
       labs(x = "Surface habitable (m²)", y = "Consommation (kWh)")
   })
 
-  # Carte
   output$map_dpe <- renderLeaflet({
     leaflet(data_filtrée()) %>%
       addTiles() %>%
@@ -169,6 +164,77 @@ server <- function(input, output, session) {
         popup = ~paste("Classe DPE :", etiquette_dpe)
       )
   })
+
+  # Export CSV
+  output$export_csv <- downloadHandler(
+    filename = function() {
+      paste0("donnees_filtrees_", Sys.Date(), ".csv")
+    },
+    content = function(file) {
+      write.csv(data_filtrée(), file, row.names = FALSE)
+    }
+  )
+
+  # Export PNGs
+  output$export_hist <- downloadHandler(
+    filename = function() {
+      paste0("histogramme_dpe_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      png(file, width = 800, height = 600)
+      print(
+        ggplot(data_filtrée(), aes(x = etiquette_dpe)) +
+          geom_bar(fill = "steelblue") +
+          labs(x = "Classe DPE", y = "Nombre de logements")
+      )
+      dev.off()
+    }
+  )
+
+  output$export_boite <- downloadHandler(
+    filename = function() {
+      paste0("boite_moustaches_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      png(file, width = 800, height = 600)
+      print(
+        ggplot(data_filtrée(), aes(x = typologie_logement, y = conso_5.usages_par_m2_ef)) +
+          geom_boxplot(fill = "orange") +
+          labs(x = "Type de logement", y = "Consommation par m² (kWh/m²)")
+      )
+      dev.off()
+    }
+  )
+    output$export_diagramme <- downloadHandler(
+    filename = function() {
+      paste0("diagramme_energie_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      png(file, width = 800, height = 600)
+      print(
+        ggplot(data_filtrée(), aes(x = type_energie_n1)) +
+          geom_bar(fill = "purple") +
+          labs(x = "Type d'énergie", y = "Nombre de logements")
+      )
+      dev.off()
+    }
+  )
+
+  output$export_nuage <- downloadHandler(
+    filename = function() {
+      paste0("nuage_surface_conso_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      png(file, width = 800, height = 600)
+      print(
+        ggplot(data_filtrée(), aes(x = surface_habitable_logement, y = conso_5_usages_ef)) +
+          geom_point(alpha = 0.5, color = "darkblue") +
+          geom_smooth(method = "lm", se = FALSE, color = "red") +
+          labs(x = "Surface habitable (m²)", y = "Consommation (kWh)")
+      )
+      dev.off()
+    }
+  )
 }
 
 shinyApp(ui = ui, server = server)
